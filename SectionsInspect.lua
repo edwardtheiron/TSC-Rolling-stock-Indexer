@@ -208,6 +208,7 @@ function Sections:Update(probeFront,probeRear)
 	
 	if Timer("PlayerInit")	then
 		Timer("PlayerInit","clear")
+		SectionInspectInProcess = false
 		Call("SetRVNumber",RVN .. " - " .. AdjacentSections.Status)
 	end
 end
