@@ -1,11 +1,12 @@
 --include=SectionsInspect.lua
 
 function Initialise() -- core Simulator function
+
 	PROBE_COUPLINGS = 1818190203
 	VL10K_PROBE = 419201
+    VL10K_RESPONSE = 419210
+	VL10K_INDEX = 419211
     PrevLength = 0
-	Timer("SectionsInspectInit", 0.5)
-	SectionsInspectionBlocker = true
     RVN = Call("GetRVNumber")
 
 end
@@ -15,42 +16,44 @@ function Update(time) -- core Simulator function
     isDeadLoco = Call("GetIsDeadEngine") == 1
     if isDeadLoco then Print(RVN," is broken section") Call("SetRVNumber",RVN .. " - Broken") Call("EndUpdate") return end
 
-	local ConsistLen = Call("GetConsistLength") 
-
+    ConsistLen = Call("GetConsistLength")
 	if ConsistLen ~= PrevLength then
 		PrevLength = ConsistLen
 		ProbeFront = Call("SendConsistMessage", PROBE_COUPLINGS, "blah", 0) == 1
 		ProbeRear = Call("SendConsistMessage", PROBE_COUPLINGS, "blah", 1) == 1		
-	end
-	
-	if Timer("SectionsInspectInit") then	-- timer func made by Sveta. link is in readme
-		-- Inspection starts after half a second from begining of scenario
-        Timer("SectionsInspectInit", "clear")
-		SectionInspectInProcess = true
-		Sections:Inspect(ProbeFront,ProbeRear)	
-	end
-	
-	if SectionInspectInProcess then
-		Sections:Update(ProbeFront,ProbeRear)
-	end
+	end   
 
-
+	Sections:Update(ProbeFront,ProbeRear)
 
 end
 
 
 
 function OnConsistMessage (msg, argument, direction) -- core Simulator function
-	if msg == VL10K_PROBE then
+	
+    if msg == VL10K_PROBE or msg == VL10K_RESPONSE or msg == VL10K_INDEX then -- later will be split
 		Sections:OCM (msg, argument, direction) -- receiving messages from other sections
     end
+
 end
 
 function OnControlValueChange(name, index, value) -- core Simulator function
     
-    if name == "MainControlSwitch" and value == 1 then	
-        Sections:PlayerInit() -- when player flips main switch second iteration of check begins
+    if name == "MainControlSwitch" then	
+		if value == 0 then
+			Call("SetControlValue","Number_sections",0,0) 
+			Call("SetControlValue","Index",0,0)	
+			Call("SendConsistMessage",VL10K_PROBE, "RESET", 1)
+		elseif value == 1 then		
+			TailResponse = { 
+				[0] = {},
+				[1] = {},
+			}
+			Timer("PlayerInit",0.2) 
+			Sections:PlayerInit() -- init of inspection
+        end 
     end 
+
 end
 
 
