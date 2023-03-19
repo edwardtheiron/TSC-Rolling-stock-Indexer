@@ -1,215 +1,121 @@
 Sections = {
-	TotalStatus = "none", -- must be "Head_Found" for all correct sections
 	NumberOfSections = 0, -- 2,3,4 are only valid configurations. others are invalid
 	Index = 0,
+	["#1:RearToRear#2:FrontToFront#3:RearToRear"] = 4,
+	["#1:RearToFront#2:RearToRear"] = 3,
+	["#1:RearToRear#2:FrontToRear"] = 3,
+	["#1:RearToRear"] = 2,	
+	-- templates that are actually only valid options
+	
 } -- master table that holds data (instead of controls) and methods
 
-AdjacentSections = { Count = 0, Front = "none", Rear = "none", Status = "none" }
+TailResponse = { 
+	[0] = {},
+	[1] = {},
+} -- temp table to hold responses from other units
 
--- Inspection triggers when ConsistLength is changed (or forced other way. cab change?)
-function Sections:Inspect(probeFront,probeRear)
-	
-	-- TODO: previous data must be wiped
-	
-	if isDeadLoco then AdjacentSections.Status = "Invalid" return end
-	
-	if probeFront then
-		--AdjacentSections.Front = "Vehicle"	
-		Call("SendConsistMessage", VL10K_PROBE, "SECTIONS_INSPECT#VLFront", 0)
-	end
-	
-	if probeRear then 
-		--AdjacentSections.Rear = "Vehicle"	
-		Call("SendConsistMessage", VL10K_PROBE, "SECTIONS_INSPECT#VLRear", 1)
-	end
-
-	-- "SECTIONS_INSPECT#VLRear" - example
-	-- next step is reading these messages inside OCM method
-	
-	Timer("SECTIONS_INSPECT", 0.05)
-	
-end
---[[
----------  CHEAT SHEET  ---------
---- FRONT <- 0 SEND 1 -> REAR ---
----------------------------------
---- FRONT -> 1 OCM 0  <- REAR ---
----------------------------------
--- <>
--- <<>
--- <>>
--- <><>
-]]--
-
--- Method called from ConsistMessage once message is received 
+-- Method called from OnConsistMessage once message is received 
 function Sections:OCM(msg, argument, direction)
-	if not isDeadLoco then
-		if string.find(argument,"SECTIONS_INSPECT") then
+		-- future versions will have separate methods for each msg ID
+		if msg == VL10K_PROBE then
 
-			local t = string.split(argument,"#")
-
-			AdjacentSections.Count = AdjacentSections.Count + 1 
+			if Call("GetControlValue","MainControlSwitch",0) == 1 then Call("SendConsistMessage",VL10K_PROBE,"KU_WAS_ON",direction == 0 and 1 or 0) return end				
+			if string.find(argument,"RESET") then Call("SetControlValue","Number_sections",0,0) Call("SetControlValue","Index",0,0)	Call("SendConsistMessage",msg, argument, direction) end
+		
+			local param = string.split(argument,"#")
 			
-			if direction == 1 then 
-				AdjacentSections.Front = t[2]	
-			else
-				AdjacentSections.Rear = t[2]	
-			end -- if no msg came, status(es) will remain 'none' or vehicle
-			--print(t[1],t[2],t[3],AdjacentSections.Rear,"####")
-			-- At the end we should get info on Adjacent Sections. If they are and their orientation and ofc their count
-		elseif string.find(argument,"TAIL_CHECK#") then
-			
-			local status = AdjacentSections.Status
-			local t = string.split(argument,"#")
-			if status == "Invalid" or status == "Broken" then 
-				Call("SendConsistMessage",msg,"TAIL_CHECK_FAIL#" .. t[2],direction == 0 and 1 or 0) 
-				--Call("SendConsistMessage",VL10K_PROBE,"SET_INVALID",direction) 
-				return 
-			end			
-				
-			t[2] = t[2] + 1
-			
-			if t[2] < 4 then
-			
-				if AdjacentSections.Status == "Middle" then
-					Call("SendConsistMessage",VL10K_PROBE,"TAIL_CHECK#" .. t[2],direction)
-					self.Index = t[2]
-				else
-					AdjacentSections.Status = nil
-					AdjacentSections.Status = "Tail"
-					Call("SendConsistMessage",msg,"TAIL_CHECK_SUCCES#" .. t[2],direction == 0 and 1 or 0)
-					self.NumberOfSections = t[2]
-					self.Index = t[2]
-					alert("TAIL_CHECK_SUCCES#Tail",t[2])
-					Call("SetControlValue", "Number_sections", 0, t[2])
-				end
-			else -- 4th section
-				print("4th section")
+			if param[4] then -- 4 sections
+				local newArg = argument .. ( direction == 1 and ( "ToFront" ) or ( "ToRear" ) )
 				if direction == 0 then
-					--if AdjacentSections.Status == "Middle" then
-					if AdjacentSections.Rear == "VLRear" then
-						AdjacentSections.Status = nil 
-						AdjacentSections.Status = "Tail"
-						Call("SendConsistMessage",msg,"TAIL_CHECK_SUCCES#" .. t[2],1)
-						self.NumberOfSections = t[2]
-						self.Index = t[2]
-						alert("TAIL_CHECK_SUCCES#Tail",t[2])
-						Call("SetControlValue", "Number_sections", 0, t[2])
-					else
-						AdjacentSections.Status = nil
-						AdjacentSections.Status = "Invalid"		
-						alert("TAIL_CHECK_FAIL#Tail",t[2])						
-						Call("SendConsistMessage",msg,"TAIL_CHECK_FAIL#" .. t[2],1) 
-					end
-					--end	
+					Call("SendConsistMessage",VL10K_PROBE, newArg .. "#4:Front" , 0)
+					Call("SendConsistMessage",VL10K_RESPONSE, newArg, 1)
 				else
-					AdjacentSections.Status = nil
-					AdjacentSections.Status = "Invalid"		
-					alert("TAIL_CHECK_FAIL#Tail",t[2])
-					Call("SendConsistMessage",msg,"TAIL_CHECK_FAIL#" .. t[2],1) 
+					Call("SendConsistMessage",VL10K_PROBE, newArg .. "#4:Rear" , 1)
+					Call("SendConsistMessage",VL10K_RESPONSE, newArg, 0)
+				end				
+			
+			elseif param[3] then -- 3 sections
+				local newArg = argument .. ( direction == 1 and ( "ToFront" ) or ( "ToRear" ) )
+				if direction == 0 then
+					Call("SendConsistMessage",VL10K_PROBE, newArg .. "#3:Front" , 0)
+					Call("SendConsistMessage",VL10K_RESPONSE, newArg, 1)
+				else
+					Call("SendConsistMessage",VL10K_PROBE, newArg .. "#3:Rear" , 1)
+					Call("SendConsistMessage",VL10K_RESPONSE, newArg, 0)
+				end			
+			elseif param[2] then -- 2 sections
+				local newArg = argument .. ( direction == 1 and ( "ToFront" ) or ( "ToRear" ) )
+				if direction == 0 then
+					Call("SendConsistMessage",VL10K_PROBE, newArg .. "#2:Front" , 0)
+					Call("SendConsistMessage",VL10K_RESPONSE, newArg, 1)
+				else
+					Call("SendConsistMessage",VL10K_PROBE, newArg .. "#2:Rear" , 1)
+					Call("SendConsistMessage",VL10K_RESPONSE, newArg, 0)
 				end
-				
-				-- if middle facing front to invalid then Status = "Tail", Send response to Head
-				
+			end	
+
+		elseif msg == VL10K_INDEX then
+			local t = string.split(argument,":")
+			t[1], t[2] = tonumber(t[1]), tonumber(t[2])
+			t[2] = t[2] + 1
+			if t[1] == t[2] then
+				Call("SetControlValue","Number_sections",0,t[2])
+				Call("SetControlValue","Index",0,t[2])			
+				alert("Sections Numeration done")				
+			else				
+				Call("SetControlValue","Number_sections",0,t[1])
+				Call("SetControlValue","Index",0,t[2])				
+				Call("SendConsistMessage",VL10K_INDEX,t[1] .. ":" ..t[2],direction)
 			end
-		elseif string.find(argument,"TAIL_CHECK_FAIL") then
-			-- if middle facing front to invalid then Status = "Tail", Send response to Head
-			if AdjacentSections.Status == "Middle" and direction == 1 then -- came from front				
-				AdjacentSections.Status = "Tail"
-				local t = string.split(argument,"#")
-				Self.NumberOfSections = t[2]
-				if t[2] == 2 then
-					--standard
-					Call("SendConsistMessage",msg,"TAIL_CHECK_SUCCES#" .. t[2],direction)
-					alert("TAIL_CHECK_SUCCES#D",t[2])
-					Call("SetControlValue", "Number_sections", 0, t[2])
-				elseif t[2] == 3 then
-					Call("SendConsistMessage",msg,"TAIL_CHECK_SUCCES#" .. t[2],direction)
-					alert("TAIL_CHECK_SUCCES#J",t[2])
-					Call("SetControlValue", "Number_sections", 0, t[2])
-				end
-				
-				
-			end
-		elseif string.find(argument,"TAIL_CHECK_SUCCES") then
-			local t = string.split(argument,"#")
-			self.NumberOfSections = t[2]
-			local status = AdjacentSections.Status
-			if status == "Middle" then
+			
+		elseif msg == VL10K_RESPONSE then
+			local param = string.split(argument,"#")
+			if Call("GetControlValue","MainControlSwitch",0) == 1 then
+				TailResponse[direction][ ( table.getn(TailResponse[direction]) + 1 ) or 0 ] = argument
+				-- table.insert would be better possibly
+			else
 				Call("SendConsistMessage",msg,argument,direction)
-			elseif status == "Head" or status == "Tail" then
-				--message returned to sender
-				if AdjacentSections.Rear == "VLRear" then
-					AdjacentSections.Status = "Driver"
-					Call("SetControlValue", "Number_sections", 0, t[2])
-				else
-					AdjacentSections.Status = "Invalid"
-					alert("Head is invalid")
-					--Call("SendConsistMessage", "Number_sections", 0, t[2])				
-				end
+			end
+		
+		elseif string.find(argument, "KU_WAS_ON") then
+			if Call("GetControlValue","avt_ku",0) == 1 then -- Power.KU
+				alert("Another KU")
+			else
+				Call("SendConsistMessage",msg,argument,direction)
 			end
 		end
-	end
+
 end --
+
 
 -- called when KU becomes 1
 function Sections:PlayerInit()
 	if PlayerInit then return end
 	PlayerInit = true
-	local status = AdjacentSections.Status
-	if status == "Head" or status == "Tail" or status == "Driver" then
-		Call("SendConsistMessage",VL10K_PROBE,"TAIL_CHECK#1",1)
-		self.Index = 1
-		Timer("PlayerInit",0.05)
-		alert("PlayerInit started")
-	elseif status == "Middle" then
-		alert("You can't use middle section as main. Sorry!")
-	elseif status == "Invalid" then
-		alert("Sections configuration is invalid")
-	end
+	if ProbeFront then Call("SendConsistMessage",VL10K_PROBE,"#1:Front",0) end
+	if ProbeRear then Call("SendConsistMessage",VL10K_PROBE,"#1:Rear",1) end
+	
 end
 
 -- main method called every frame to handle different stages of inspection
 function Sections:Update(probeFront,probeRear)
-
-	if Timer("SECTIONS_INSPECT") then 		
-	
-		Timer("SECTIONS_INSPECT", "clear")		
-		local Count = AdjacentSections.Count
-		
-		if Count == 0 then
-		
-			AdjacentSections.Status = "Invalid"
-			
-		elseif Count == 1 then
-
-			if AdjacentSections.Rear == "none" then -- not VL10k unit at rear side or just empty rear side				
-				AdjacentSections.Status = "Invalid"						
-			elseif probeFront then	
-				AdjacentSections.Front = "Vehicle"
-				AdjacentSections.Status = "Tail"
-			else	
-				AdjacentSections.Status = "Head"				
-			end
-			
-		elseif Count == 2 then 
-			AdjacentSections.Status = "Middle"		
-		end
-		
-		Timer("Status",0.05)	
-	end
-
-	if Timer("Status") then
-		Timer("Status","clear")
-
-		Print(AdjacentSections.Count," #In front there is_",AdjacentSections.Front," #At the rear there is_",AdjacentSections.Rear," #Status is_",AdjacentSections.Status)
-		
-	end
-	
-	if Timer("PlayerInit")	then
+	if Timer("PlayerInit") then
 		Timer("PlayerInit","clear")
-		SectionInspectInProcess = false
-		Call("SetRVNumber",RVN .. " - " .. AdjacentSections.Status)
-	end
-end
+		PlayerInit = false
 
+		if TailResponse[1][1] then alert("Error!","You can't start from middle section!") return end
+		
+		local num = self[TailResponse[0][1]] or self[TailResponse[0][2]] or self[TailResponse[0][3]] or 0		
+
+		if num ~= 0 and not TailResponse[1][1] then --filters if there are sections ahead of our cab (which is should not be) and filters config by templates in main table
+			self.NumberOfSections = num
+			self.Index = 1
+			Call("SetControlValue","Number_sections",0,num)
+			Call("SetControlValue","Index",0,1)
+			Call("SendConsistMessage",VL10K_INDEX,num .. ":1",1)
+		else
+			alert("Error!","Wrong sections configuration")
+		end
+	end
+	
+end
