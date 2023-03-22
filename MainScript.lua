@@ -1,18 +1,20 @@
 --include=SectionsInspect.lua
 
 function Initialise() -- core Simulator function
-
+	-- ... 
 	PROBE_COUPLINGS = 1818190203
+	-- group of custom ids based on letter numbers of "DSB" team
 	VL10K_PROBE = 419201
     VL10K_RESPONSE = 419210
 	VL10K_INDEX = 419211
+	-- you should create your unique ids
     PrevLength = 0
     RVN = Call("GetRVNumber")
-
+	-- ... 
 end
 
 function Update(time) -- core Simulator function
-
+	-- ... 
     isDeadLoco = Call("GetIsDeadEngine") == 1
     if isDeadLoco then Print(RVN," is broken section") Call("SetRVNumber",RVN .. " - Broken") Call("EndUpdate") return end
 
@@ -24,22 +26,22 @@ function Update(time) -- core Simulator function
 	end   
 
 	Sections:Update(ProbeFront,ProbeRear)
-
+	-- ... 
 end
 
 
 
 function OnConsistMessage (msg, argument, direction) -- core Simulator function
-	
+	-- ... 	
     if msg == VL10K_PROBE or msg == VL10K_RESPONSE or msg == VL10K_INDEX then -- later will be split
 		Sections:OCM (msg, argument, direction) -- receiving messages from other sections
     end
-
+	-- ... 
 end
 
 function OnControlValueChange(name, index, value) -- core Simulator function
-    
-    if name == "MainControlSwitch" then	
+	-- ... 
+    if name == "avt_ku" then	-- the main switch that user flips to start the loco. two of them in one group in illegal
 		if value == 0 then
 			Call("SetControlValue","Number_sections",0,0) 
 			Call("SetControlValue","Index",0,0)	
@@ -53,7 +55,7 @@ function OnControlValueChange(name, index, value) -- core Simulator function
 			Sections:PlayerInit() -- init of inspection
         end 
     end 
-
+	-- ... 
 end
 
 
